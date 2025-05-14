@@ -63,7 +63,7 @@ flowchart LR
   TsSDK --> API
   CSDK --> API
   
-  JavaSDK -.-> RedisCache  # SDKs might have their own local cache, or directly hit API which uses Redis
+  JavaSDK -.-> RedisCache  %%SDKs might have their own local cache, or directly hit API which uses Redis
   PySDK -.-> RedisCache
   TsSDK -.-> RedisCache
   CSDK -.-> RedisCache
