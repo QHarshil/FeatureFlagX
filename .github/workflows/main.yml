@@ -1,0 +1,134 @@
+name: FeatureFlagX CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, master ] # Or default branch
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-and-test-api:
+    name: Build and Test Java API
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: maven
+
+    - name: Build and Test API with Maven
+      working-directory: ./api
+      run: mvn -B verify --file pom.xml
+
+    - name: Build Docker Image for API
+      working-directory: ./api
+      run: docker build -t featureflagx-api:${{ github.sha }} .
+      # Push this to a container registry
+      # - name: Login to Docker Hub
+      #   uses: docker/login-action@v3
+      #   with:
+      #     username: ${{ secrets.DOCKERHUB_USERNAME }}
+      #     password: ${{ secrets.DOCKERHUB_TOKEN }}
+      # - name: Push Docker image
+      #   run: |
+      #     docker tag featureflagx-api:${{ github.sha }} your-docker-repo/featureflagx-api:latest
+      #     docker tag featureflagx-api:${{ github.sha }} your-docker-repo/featureflagx-api:${{ github.sha }}
+      #     docker push your-docker-repo/featureflagx-api:latest
+      #     docker push your-docker-repo/featureflagx-api:${{ github.sha }}
+
+  build-and-test-java-sdk:
+    name: Build and Test Java SDK
+    runs-on: ubuntu-latest
+    needs: build-and-test-api # Optional: can run in parallel if no direct dependency for build
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: maven
+
+    - name: Build and Test Java SDK with Maven
+      working-directory: ./sdk-java
+      run: mvn -B verify --file pom.xml
+
+  build-and-test-python-sdk:
+    name: Build and Test Python SDK
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install Python SDK dependencies
+      working-directory: ./sdk-python
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-dev.txt  # Assuming you create this for test deps
+        pip install -e . # Install SDK in editable mode
+      # Fallback if requirements-dev.txt doesn't exist
+      shell: bash
+      continue-on-error: true
+    
+    - name: Install Python SDK dependencies (alternative if no requirements-dev.txt)
+      if: steps.install_python_sdk_dependencies.outcome == 'failure'
+      working-directory: ./sdk-python
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest requests-mock cachetools
+        pip install -e .
+
+    - name: Test Python SDK with Pytest
+      working-directory: ./sdk-python
+      run: pytest
+      # In a real scenario, you might build a wheel and publish to PyPI
+
+  build-and-test-typescript-sdk:
+    name: Build and Test TypeScript SDK
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20' # Or your preferred LTS version
+        cache: 'npm'
+        cache-dependency-path: sdk-ts/package-lock.json
+
+    - name: Install TypeScript SDK dependencies
+      working-directory: ./sdk-ts
+      run: npm ci
+
+    - name: Build TypeScript SDK
+      working-directory: ./sdk-ts
+      run: npm run build
+
+    - name: Test TypeScript SDK
+      working-directory: ./sdk-ts
+      run: npm test
+      # or if you want to publish this to npm
+
+  # Linting job
+  # lint:
+  #   name: Lint Codebase
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #   - name: Checkout code
+  #     uses: actions/checkout@v4
+  #   # Add linting steps for Java (e.g., Checkstyle), Python (e.g., Flake8, Black), TypeScript (e.g., ESLint, Prettier)
+
+

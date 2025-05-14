@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:14-alpine
+    container_name: featureflagx_db
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres} # Default to 'postgres' if DB_USER is not set
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-yourpassword} # Default to 'yourpassword' if DB_PASSWORD is not set
+      POSTGRES_DB: ${DB_NAME:-ffx} # Default to 'ffx' if DB_NAME is not set
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-ffx}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:6-alpine
+    container_name: featureflagx_redis
+    ports:
+      - "6379:6379"
+    # command: redis-server --requirepass ${REDIS_PASSWORD} # Uncomment if you set a password in application.yml and RedisConfig.java
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - redis_data:/data
+
+  api:
+    build:
+      context: ./api # Path to the Dockerfile directory for the API
+      dockerfile: Dockerfile
+    container_name: featureflagx_api
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      # These environment variables will override those in application.yml
+      # or provide values if placeholders are used.
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${DB_NAME:-ffx}
+      SPRING_DATASOURCE_USERNAME: ${DB_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-yourpassword}
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      # SPRING_REDIS_PASSWORD: ${REDIS_PASSWORD} # Uncomment if Redis password is set
+      # JAVA_OPTS: "-Xms256m -Xmx512m" # Example Java options
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s # Give time for Spring Boot app to start
+
+volumes:
+  postgres_data:
+  redis_data:
+

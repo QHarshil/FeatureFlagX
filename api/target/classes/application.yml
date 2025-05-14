@@ -1,0 +1,51 @@
+server:
+  port: ${PORT:8080}
+
+spring:
+  application:
+    name: featureflagx-api
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:db}:${DB_PORT:5432}/${DB_NAME:ffx}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:yourpassword} # Replace with a strong default or ensure it's always overridden by env
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      connection-timeout: 20000
+      maximum-pool-size: 5
+  jpa:
+    hibernate:
+      ddl-auto: update # create-drop for dev, validate/none for prod
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        # For jsonb support if not automatically handled by the dialect with newer Hibernate versions
+        # properties.hibernate.type.json_format_mapper: com.fasterxml.jackson.databind.ObjectMapper
+  redis:
+    host: ${REDIS_HOST:redis}
+    port: ${REDIS_PORT:6379}
+    # password: ${REDIS_PASSWORD:} # Uncomment and set if your Redis requires a password
+    lettuce:
+      pool:
+        max-active: 8
+        max-idle: 8
+        min-idle: 0
+
+# Logging configuration (example)
+logging:
+  level:
+    root: INFO
+    com.featureflagx: DEBUG
+    org.springframework.web: INFO
+    org.hibernate: INFO
+
+# Management endpoints (Actuator)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,info,prometheus"
+  endpoint:
+    health:
+      show-details: always
+

@@ -1,0 +1,34 @@
+{
+  "name": "featureflagx-sdk-ts",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for FeatureFlagX Service",
+  "main": "dist/client.js",
+  "types": "dist/client.d.ts",
+  "scripts": {
+    "test": "jest",
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "featureflagx",
+    "feature-flags",
+    "sdk",
+    "typescript"
+  ],
+  "author": "Manus AI",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.15.17",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.3.2",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "axios": "^1.9.0",
+    "node-cache": "^5.1.2"
+  },
+  "files": [
+    "dist"
+  ]
+}
