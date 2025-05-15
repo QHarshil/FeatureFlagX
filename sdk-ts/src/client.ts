@@ -1,4 +1,4 @@
-import axios, { AxiosInstance, AxiosError } from "axios";
+import axios, { AxiosInstance, AxiosError, AxiosResponse } from "axios";
 import NodeCache from "node-cache";
 
 export interface FeatureFlagClientConfig {
@@ -31,9 +31,6 @@ export class FeatureFlagClient {
             baseURL: this.config.baseUrl,
             timeout: this.config.connectTimeoutSeconds * 1000, // Axios timeout is in ms
         });
-        // if (this.config.apiKey) {
-        //     this.httpClient.defaults.headers.common["Authorization"] = `Bearer ${this.config.apiKey}`;
-        // }
         this.cache = new NodeCache({
             stdTTL: this.config.cacheTtlSeconds,
             maxKeys: this.config.cacheMaxSize,
@@ -54,13 +51,27 @@ export class FeatureFlagClient {
                 timeout: this.config.readTimeoutSeconds * 1000, // Override for read timeout
             });
             return response.data;
-        } catch (error) {
-            const axiosError = error as AxiosError;
+        } catch (error: any) {
             console.error(
-                `Error fetching flag "${flagKey}" for target "${targetId}": ${axiosError.message}`
+                `Error fetching flag "${flagKey}" for target "${targetId}": ${error?.message || "Unknown error"}`
             );
-            if (axiosError.response) {
-                console.error(`API responded with status ${axiosError.response.status}: ${JSON.stringify(axiosError.response.data)}`);
+            // Check if it looks like an AxiosError with a response object
+            if (error && typeof error === 'object' && error.isAxiosError && error.response) {
+                const axiosResponse = error.response as AxiosResponse;
+                const status = axiosResponse.status || 'N/A';
+                let responseDataStr = "No response data or data is not stringifiable.";
+                if (axiosResponse.hasOwnProperty('data')) {
+                    try {
+                        responseDataStr = JSON.stringify(axiosResponse.data);
+                    } catch (stringifyError: any) {
+                        responseDataStr = `Error stringifying response data: ${stringifyError?.message || "Unknown stringify error"}`;
+                    }
+                }
+                console.error(`API responded with status ${status}: ${responseDataStr}`);
+            } else if (error && typeof error === 'object' && error.hasOwnProperty('message')) {
+                console.error("Error details:", error.message);
+            } else {
+                console.error("Unknown error structure caught:", error);
             }
             return null;
         }
@@ -114,59 +125,5 @@ export class FeatureFlagClient {
     }
 }
 
-// Export an alias for the main class for easier top-level import
 export { FeatureFlagClient as Client };
-
-// Example Usage (for local testing, move to an example file or tests later)
-// async function main() {
-//     console.log("TypeScript SDK Example");
-//     const clientConfig: FeatureFlagClientConfig = { baseUrl: "http://localhost:8080" };
-//     const client = new FeatureFlagClient(clientConfig);
-
-//     // Ensure a flag with key "ts-test-enabled" is created and enabled in your API
-//     // POST /flags  {"key": "ts-test-enabled", "enabled": true, "config": "{}"}
-//     console.log(`Is "ts-test-enabled" enabled? ${await client.isEnabled("ts-test-enabled")}`);
-
-//     // Ensure a flag with key "ts-test-disabled" is created and disabled in your API
-//     // POST /flags  {"key": "ts-test-disabled", "enabled": false, "config": "{}"}
-//     console.log(`Is "ts-test-disabled" enabled? ${await client.isEnabled("ts-test-disabled")}`);
-
-//     console.log(`Is "non-existent-flag" enabled? ${await client.isEnabled("non-existent-flag")}`);
-//     console.log(
-//         `Is "non-existent-flag" enabled (with specific default true)? ${await client.isEnabled(
-//             "non-existent-flag",
-//             undefined,
-//             true
-//         )}`
-//     );
-
-//     // Test cache
-//     console.log(
-//         `Fetching "ts-test-enabled" again (should be cached): ${await client.isEnabled(
-//             "ts-test-enabled"
-//         )}`
-//     );
-//     await new Promise(resolve => setTimeout(resolve, 2000));
-//     console.log(
-//         `Fetching "ts-test-enabled" again after 2s: ${await client.isEnabled("ts-test-enabled")}`
-//     );
-
-//     client.invalidate("ts-test-enabled");
-//     console.log(
-//         `Fetching "ts-test-enabled" after invalidation (should fetch from API): ${await client.isEnabled(
-//             "ts-test-enabled"
-//         )}`
-//     );
-
-//     client.clearCache();
-//     console.log(
-//         `Fetching "ts-test-enabled" after cache clear (should fetch from API): ${await client.isEnabled(
-//             "ts-test-enabled"
-//         )}`
-//     );
-// }
-
-// if (require.main === module) {
-//     main().catch(console.error);
-// }
 

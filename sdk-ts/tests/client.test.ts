@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { AxiosError, AxiosResponse } from "axios";
 import { FeatureFlagClient, FeatureFlagClientConfig } from "../src/client"; // Adjust path as needed
 
 // Mock axios
@@ -18,7 +18,7 @@ jest.mock("node-cache", () => {
             set: mockCacheSet,
             del: mockCacheDel,
             flushAll: mockCacheFlushAll,
-            has: jest.fn(), // Add other methods if your client uses them
+            has: jest.fn(),
             keys: jest.fn(),
             stats: jest.fn(),
             take: jest.fn(),
@@ -38,12 +38,17 @@ describe("FeatureFlagClient", () => {
     const baseConfig: FeatureFlagClientConfig = {
         baseUrl: "http://mockapi.example.com",
         cacheTtlSeconds: 2, // Short TTL for testing
+        defaultValueOnError: false, // Explicitly set for clarity in tests
     };
 
     beforeEach(() => {
         // Reset mocks before each test
         mockedAxios.create = jest.fn(() => mockedAxios);
-        mockedAxios.get = jest.fn();
+        // Make default mock throw if called without specific setup in a test
+        mockedAxios.get = jest.fn().mockImplementation((url: string, config?: any) => {
+            const fullUrl = config?.baseURL ? `${config.baseURL}${url}` : url;
+            throw new Error(`mockedAxios.get called unexpectedly for URL: ${fullUrl}. Ensure this call is intended and mocked in your test.`);
+        });
         mockCacheGet.mockReset();
         mockCacheSet.mockReset();
         mockCacheDel.mockReset();
@@ -53,7 +58,7 @@ describe("FeatureFlagClient", () => {
 
     test("isEnabled fetches from API on cache miss", async () => {
         mockCacheGet.mockReturnValue(undefined);
-        mockedAxios.get.mockResolvedValue({ data: true, status: 200, statusText: "OK", headers: {}, config: {} });
+        mockedAxios.get.mockResolvedValue({ data: true, status: 200, statusText: "OK", headers: {}, config: {} as any } as AxiosResponse<boolean>);
 
         const flagKey = "my-feature";
         const targetId = "user123";
@@ -73,6 +78,7 @@ describe("FeatureFlagClient", () => {
         const flagKey = "cached-feature";
         const targetId = "user456";
         mockCacheGet.mockReturnValue(false); // Pre-populate cache
+        // Ensure axios.get is NOT called. If it IS called, the default mock in beforeEach will throw.
 
         const result = await client.isEnabled(flagKey, targetId);
 
@@ -82,61 +88,97 @@ describe("FeatureFlagClient", () => {
         expect(mockCacheSet).not.toHaveBeenCalled();
     });
 
-    test("isEnabled API error returns default value", async () => {
+    test("isEnabled API generic error returns default value", async () => {
         mockCacheGet.mockReturnValue(undefined);
-        mockedAxios.get.mockRejectedValue(new Error("API Unreachable"));
+        const genericError = new Error("API Unreachable");
+        // Explicitly cast to any to satisfy mockRejectedValue, though it's not a true AxiosError
+        mockedAxios.get.mockRejectedValue(genericError as any);
         const flagKey = "error-feature";
 
-        // Default from client config (false)
-        let result = await client.isEnabled(flagKey);
-        expect(result).toBe(baseConfig.defaultValueOnError || false);
+        const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+        const consoleWarnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
 
-        // Specific default provided
+        let result = await client.isEnabled(flagKey);
+        expect(result).toBe(false);
+        expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining(`Error fetching flag "${flagKey}" for target "undefined": ${genericError.message}`));
+        expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining(`Could not fetch flag "${flagKey}"`));
+
         result = await client.isEnabled(flagKey, undefined, true);
         expect(result).toBe(true);
-        expect(mockedAxios.get).toHaveBeenCalledTimes(2); // API was attempted twice
+        expect(mockedAxios.get).toHaveBeenCalledTimes(2);
+        
+        consoleErrorSpy.mockRestore();
+        consoleWarnSpy.mockRestore();
     });
 
-    test("isEnabled API returns non-200 status returns default", async () => {
+    test("isEnabled returns default value when API response.data is not boolean", async () => {
         mockCacheGet.mockReturnValue(undefined);
-        mockedAxios.get.mockResolvedValue({ status: 500, data: "Server Error", config:{}, headers:{}, statusText:"Error" }); // Simulate non-200 by not returning boolean data
-        const flagKey = "http-error-feature";
-        
-        //This test needs to be adjusted as the mock for axios.get should return a boolean or throw an error based on status.
-        //For now, we assume the .get will throw or return non-boolean for error status, leading to null from makeRequest
-        const clientWithSpecificErrorHandler = new FeatureFlagClient(baseConfig);
-        const makeRequestSpy = jest.spyOn(clientWithSpecificErrorHandler as any, "makeRequest");
-        makeRequestSpy.mockResolvedValue(null); // Simulate makeRequest returning null due to error
+        mockedAxios.get.mockResolvedValue({ data: { error: "some error object" } as any, status: 200, statusText: "OK", headers: {}, config: {} as any } as AxiosResponse<any>);
 
-        let result = await clientWithSpecificErrorHandler.isEnabled(flagKey);
-        expect(result).toBe(baseConfig.defaultValueOnError || false);
-        makeRequestSpy.mockRestore();
+        const flagKey = "non-boolean-response-feature";
+        const consoleWarnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+
+        let result = await client.isEnabled(flagKey);
+        expect(result).toBe(false);
+        expect(mockedAxios.get).toHaveBeenCalledWith(`/flags/evaluate/${flagKey}`, expect.anything());
+        expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining(`Could not fetch flag "${flagKey}"`));
+
+        consoleWarnSpy.mockRestore();
+    });
+
+    test("isEnabled returns default value on API HTTP error (e.g., 500)", async () => {
+        mockCacheGet.mockReturnValue(undefined);
+        const mockHttpError = {
+            isAxiosError: true,
+            message: "Request failed with status code 500",
+            response: {
+                status: 500,
+                data: { error: "Server Error details" },
+                headers: {},
+                config: {} as any,
+                statusText: "Internal Server Error"
+            },
+            config: {} as any,
+            name: 'AxiosError',
+            toJSON: () => ({})
+        } as AxiosError;
+        mockedAxios.get.mockRejectedValue(mockHttpError);
+
+        const flagKey = "http-error-feature";
+        const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+        const consoleWarnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+
+        let result = await client.isEnabled(flagKey);
+        expect(result).toBe(false);
+
+        expect(mockedAxios.get).toHaveBeenCalledWith(`/flags/evaluate/${flagKey}`, expect.anything());
+        expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining(`Error fetching flag "${flagKey}" for target "undefined": ${mockHttpError.message}`));
+        expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining(`API responded with status 500: ${JSON.stringify(mockHttpError.response?.data)}`));
+        expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining(`Could not fetch flag "${flagKey}"`));
+        
+        consoleErrorSpy.mockRestore();
+        consoleWarnSpy.mockRestore();
     });
 
     test("cache expiration leads to API refetch", async () => {
-        mockCacheGet.mockReturnValueOnce(undefined); // First call: miss
-        mockedAxios.get.mockResolvedValueOnce({ data: true, status:200, config:{}, headers:{}, statusText:"OK" });
-
         const flagKey = "expiring-feature";
 
-        // First call, API returns True, gets cached
+        mockCacheGet.mockReturnValueOnce(undefined); // First call: miss
+        mockedAxios.get.mockResolvedValueOnce({ data: true, status:200, config:{} as any, headers:{}, statusText:"OK" } as AxiosResponse<boolean>);
         await client.isEnabled(flagKey);
         expect(mockedAxios.get).toHaveBeenCalledTimes(1);
         expect(mockCacheSet).toHaveBeenCalledWith(`${flagKey}:`, true);
 
-        // Simulate cache hit for subsequent calls within TTL
-        mockCacheGet.mockReturnValueOnce(true);
+        mockCacheGet.mockReturnValueOnce(true); // Simulate cache hit
         await client.isEnabled(flagKey);
-        expect(mockedAxios.get).toHaveBeenCalledTimes(1); // Still 1, used cache
+        expect(mockedAxios.get).toHaveBeenCalledTimes(1); 
 
-        // Simulate cache expiry: next call to mockCacheGet returns undefined
-        mockCacheGet.mockReturnValueOnce(undefined);
-        mockedAxios.get.mockResolvedValueOnce({ data: false, status:200, config:{}, headers:{}, statusText:"OK" }); // API returns False now
-        
+        mockCacheGet.mockReturnValueOnce(undefined); // Simulate cache expiry
+        mockedAxios.get.mockResolvedValueOnce({ data: false, status:200, config:{} as any, headers:{}, statusText:"OK" } as AxiosResponse<boolean>); 
         const resultAfterExpiry = await client.isEnabled(flagKey);
         expect(resultAfterExpiry).toBe(false);
-        expect(mockedAxios.get).toHaveBeenCalledTimes(2); // Called API again
-        expect(mockCacheSet).toHaveBeenCalledWith(`${flagKey}:`, false);
+        expect(mockedAxios.get).toHaveBeenCalledTimes(2); 
+        expect(mockCacheSet).toHaveBeenLastCalledWith(`${flagKey}:`, false);
     });
 
     test("invalidate flag removes it from cache", () => {
@@ -151,19 +193,20 @@ describe("FeatureFlagClient", () => {
         expect(mockCacheFlushAll).toHaveBeenCalled();
     });
 
-    test("isEnabled with empty flagKey returns default value", async () => {
+    test("isEnabled with empty flagKey returns default value and warns", async () => {
         const consoleWarnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
         let result = await client.isEnabled("");
-        expect(result).toBe(baseConfig.defaultValueOnError || false);
+        expect(result).toBe(false);
         result = await client.isEnabled("", undefined, true);
         expect(result).toBe(true);
         expect(consoleWarnSpy).toHaveBeenCalledWith("flagKey cannot be empty.");
+        expect(mockedAxios.get).not.toHaveBeenCalled(); // API should not be called for empty flagKey
         consoleWarnSpy.mockRestore();
     });
 
     test("isEnabled without targetId works correctly", async () => {
         mockCacheGet.mockReturnValue(undefined);
-        mockedAxios.get.mockResolvedValue({ data: true, status:200, config:{}, headers:{}, statusText:"OK" });
+        mockedAxios.get.mockResolvedValue({ data: true, status:200, config:{} as any, headers:{}, statusText:"OK" } as AxiosResponse<boolean>);
         const flagKey = "no-target-feature";
 
         const result = await client.isEnabled(flagKey);

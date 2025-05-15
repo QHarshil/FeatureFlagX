@@ -56,7 +56,7 @@ public class FlagServiceTest {
         flagRequest1.setConfig("{ \"variant\": \"A\" }");
 
         // Mock Redis operations
-        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
     }
 
     @Test
