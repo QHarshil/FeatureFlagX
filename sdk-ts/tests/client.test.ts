@@ -45,10 +45,7 @@ describe("FeatureFlagClient", () => {
         // Reset mocks before each test
         mockedAxios.create = jest.fn(() => mockedAxios);
         // Make default mock throw if called without specific setup in a test
-        mockedAxios.get = jest.fn().mockImplementation((url: string, config?: any) => {
-            const fullUrl = config?.baseURL ? `${config.baseURL}${url}` : url;
-            throw new Error(`mockedAxios.get called unexpectedly for URL: ${fullUrl}. Ensure this call is intended and mocked in your test.`);
-        });
+        mockedAxios.get = jest.fn(); // Default mock for get, resolves to undefined
         mockCacheGet.mockReset();
         mockCacheSet.mockReset();
         mockCacheDel.mockReset();

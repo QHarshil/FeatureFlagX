@@ -157,9 +157,3 @@ This will use the `tsc` command (TypeScript compiler) as defined in your `packag
     ```
     (Note: The `test` script in `package.json` needs to be configured for your chosen test runner.)
 
-## 7. TODO
-
--   Implement comprehensive unit tests for `client.ts` (e.g., using Jest).
--   Consider browser compatibility more deeply if it becomes a primary requirement (e.g., using `fetch` instead of `axios`, or providing separate builds).
--   Explore options for more advanced targeting rule evaluation if the API supports it in the future.
-

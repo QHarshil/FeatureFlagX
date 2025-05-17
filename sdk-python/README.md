@@ -135,9 +135,4 @@ The SDK uses an in-memory TTLCache (`cachetools.TTLCache`) to store flag evaluat
     pytest
     ```
 
-## 6. TODO
-
--   Implement comprehensive unit tests for `client.py`.
--   Consider adding support for background updates of the cache.
--   Explore options for more advanced targeting rule evaluation if the API supports it in the future.
 

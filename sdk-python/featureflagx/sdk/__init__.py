@@ -1,2 +1,1 @@
-# This file makes 'sdk' a sub-package of 'featureflagx'
-
+# This file makes Python treat the sdk directory as a package.

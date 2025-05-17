@@ -1,4 +1,9 @@
-"""#!/usr/bin/env python
+"""
+This is a Python SDK for the FeatureFlagX service, which allows developers to manage feature flags
+and configurations in their applications. The SDK provides a simple and efficient way to interact
+with the FeatureFlagX API, enabling developers to easily toggle features on and off, manage user 
+segments, and track feature usage.
+"""
 
 from setuptools import setup, find_packages
 
@@ -8,7 +13,7 @@ setup(
     description="Python SDK for FeatureFlagX Service",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
-    packages=find_packages(include=["featureflagx.sdk", "featureflagx.sdk.*"]),
+    packages=find_packages(include=["featureflagx", "featureflagx.*"]),
     install_requires=[
         "requests>=2.20.0",
         "cachetools>=4.0.0",
@@ -25,4 +30,3 @@ setup(
     ],
     python_requires=">=3.7",
 )
-"""
