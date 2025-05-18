@@ -44,8 +44,14 @@ describe("FeatureFlagClient", () => {
     beforeEach(() => {
         // Reset mocks before each test
         mockedAxios.create = jest.fn(() => mockedAxios);
-        // Make default mock throw if called without specific setup in a test
-        mockedAxios.get = jest.fn(); // Default mock for get, resolves to undefined
+        // Default mock for get that returns a properly structured response with null data
+        mockedAxios.get = jest.fn().mockResolvedValue({ 
+            data: null, 
+            status: 200, 
+            statusText: "OK", 
+            headers: {}, 
+            config: {} as any 
+        } as AxiosResponse<any>);
         mockCacheGet.mockReset();
         mockCacheSet.mockReset();
         mockCacheDel.mockReset();
