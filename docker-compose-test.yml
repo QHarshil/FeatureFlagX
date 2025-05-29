@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  # PostgreSQL database for end-to-end testing
+  postgres-test:
+    image: postgres:14-alpine
+    environment:
+      POSTGRES_DB: featureflagx_test
+      POSTGRES_USER: test_user
+      POSTGRES_PASSWORD: test_password
+    ports:
+      - "5433:5432"  # Different port to avoid conflicts with dev environment
+    volumes:
+      - postgres-test-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test_user -d featureflagx_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis for end-to-end testing
+  redis-test:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"  # Different port to avoid conflicts with dev environment
+    volumes:
+      - redis-test-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # API service for end-to-end testing
+  api-test:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    environment:
+      SPRING_PROFILES_ACTIVE: test
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-test:5432/featureflagx_test
+      SPRING_DATASOURCE_USERNAME: test_user
+      SPRING_DATASOURCE_PASSWORD: test_password
+      SPRING_REDIS_HOST: redis-test
+      SPRING_REDIS_PORT: 6379
+    ports:
+      - "8081:8080"  # Different port to avoid conflicts with dev environment
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+      redis-test:
+        condition: service_healthy
+
+volumes:
+  postgres-test-data:
+  redis-test-data:
