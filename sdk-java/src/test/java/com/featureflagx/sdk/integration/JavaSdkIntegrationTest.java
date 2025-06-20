@@ -10,7 +10,6 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.io.File;
-import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -32,8 +31,7 @@ public class JavaSdkIntegrationTest {
     private static final DockerComposeContainer<?> environment = 
             new DockerComposeContainer<>(new File("../docker-compose-test.yml"))
                     .withExposedService(API_SERVICE, API_PORT)
-                    .withLocalCompose(true)
-                    .withStartupTimeout(Duration.ofMinutes(2));
+                    .withLocalCompose(true);
     
     private FeatureFlagClient client;
     
@@ -103,7 +101,7 @@ public class JavaSdkIntegrationTest {
         boolean firstResult = client.isEnabled(flagKey, targetId, true);
         
         // And then invalidated
-        client.invalidate(flagKey, targetId);
+        client.invalidateFlag(flagKey);
         
         // And accessed again
         boolean secondResult = client.isEnabled(flagKey, targetId, true);

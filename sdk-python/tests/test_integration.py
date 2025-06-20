@@ -5,12 +5,22 @@ import uuid
 import subprocess
 import requests
 import signal
+import shutil
 from featureflagx.sdk.client import FeatureFlagClient, FeatureFlagClientConfig
+
+# Skip all tests in this module if docker-compose is not available or integration tests are disabled
+docker_compose_available = shutil.which('docker-compose') is not None
+run_integration_tests = os.environ.get('RUN_INTEGRATION_TESTS', '').lower() == 'true'
+pytestmark = pytest.mark.skipif(
+    not docker_compose_available or not run_integration_tests,
+    reason="Integration tests require docker-compose and RUN_INTEGRATION_TESTS=true"
+)
 
 class TestPythonSdkIntegration:
     """
     Integration tests for the Python SDK against a running API instance.
     Uses Docker Compose to spin up the entire stack (API, PostgreSQL, Redis).
+    These tests are skipped if docker-compose is not available or if RUN_INTEGRATION_TESTS is not set to true.
     """
     
     @classmethod
@@ -49,7 +59,7 @@ class TestPythonSdkIntegration:
         )
         
         # Ensure the process is terminated
-        if cls.docker_compose_process:
+        if hasattr(cls, 'docker_compose_process') and cls.docker_compose_process:
             cls.docker_compose_process.terminate()
             try:
                 cls.docker_compose_process.wait(timeout=10)

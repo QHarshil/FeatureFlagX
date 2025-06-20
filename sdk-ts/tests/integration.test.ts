@@ -4,12 +4,36 @@ import { FeatureFlagClient, FeatureFlagClientConfig } from '../src/client';
 import * as path from 'path';
 import * as fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
+import { execSync } from 'child_process';
+
+/**
+ * Check if docker-compose is available
+ */
+function isDockerComposeAvailable(): boolean {
+  try {
+    execSync('docker-compose --version', { stdio: 'ignore' });
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+/**
+ * Check if integration tests should run
+ */
+function shouldRunIntegrationTests(): boolean {
+  return process.env.RUN_INTEGRATION_TESTS === 'true' && isDockerComposeAvailable();
+}
+
+// Skip all tests if docker-compose is not available or integration tests are disabled
+const runTests = shouldRunIntegrationTests();
 
 /**
  * Integration tests for the TypeScript SDK against a running API instance.
  * Uses Docker Compose to spin up the entire stack (API, PostgreSQL, Redis).
+ * These tests are skipped if docker-compose is not available or if RUN_INTEGRATION_TESTS is not set to true.
  */
-describe('TypeScript SDK Integration Tests', () => {
+(runTests ? describe : describe.skip)('TypeScript SDK Integration Tests', () => {
   let dockerComposeProcess: ChildProcess;
   let client: FeatureFlagClient;
   const apiUrl = 'http://localhost:8081';

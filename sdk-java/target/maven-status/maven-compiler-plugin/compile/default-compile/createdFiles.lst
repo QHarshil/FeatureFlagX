@@ -1,2 +1,3 @@
-com\featureflagx\sdk\FeatureFlagClient.class
-com\featureflagx\sdk\FeatureFlagClient$Config.class
+com/featureflagx/sdk/FeatureFlagClient$Config$ConfigBuilder.class
+com/featureflagx/sdk/FeatureFlagClient$Config.class
+com/featureflagx/sdk/FeatureFlagClient.class

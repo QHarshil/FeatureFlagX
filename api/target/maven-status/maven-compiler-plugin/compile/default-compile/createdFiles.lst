@@ -1,0 +1,3 @@
+com\featureflagx\dto\FlagRequest.class
+com\featureflagx\model\Flag.class
+com\featureflagx\config\RedisConfig.class

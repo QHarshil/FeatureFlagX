@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RedisConfig.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">FeatureFlagX API</a> &gt; <a href="index.source.html" class="el_package">com.featureflagx.config</a> &gt; <span class="el_source">RedisConfig.java</span></div><h1>RedisConfig.java</h1><pre class="source lang-java linenums">package com.featureflagx.config;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
+import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.serializer.StringRedisSerializer;
+
+@Configuration
+<span class="nc" id="L12">public class RedisConfig {</span>
+
+    @Value(&quot;${spring.redis.host:redis}&quot;) // Default to 'redis' if not specified
+    private String redisHost;
+
+    @Value(&quot;${spring.redis.port:6379}&quot;) // Default to 6379 if not specified
+    private int redisPort;
+
+    @Bean
+    public LettuceConnectionFactory redisConnectionFactory() {
+<span class="nc" id="L22">        RedisStandaloneConfiguration config = new RedisStandaloneConfiguration(redisHost, redisPort);</span>
+        // Add password if your Redis instance requires it:
+        // config.setPassword(RedisPassword.of(&quot;yourpassword&quot;));
+<span class="nc" id="L25">        return new LettuceConnectionFactory(config);</span>
+    }
+
+    @Bean
+    public RedisTemplate&lt;String, Object&gt; redisTemplate() {
+<span class="nc" id="L30">        RedisTemplate&lt;String, Object&gt; template = new RedisTemplate&lt;&gt;();</span>
+<span class="nc" id="L31">        template.setConnectionFactory(redisConnectionFactory());</span>
+<span class="nc" id="L32">        template.setKeySerializer(new StringRedisSerializer());</span>
+        // For value serializer, you might want to use Jackson2JsonRedisSerializer
+        // if you are storing complex objects, or StringRedisSerializer for simple strings.
+        // template.setValueSerializer(new Jackson2JsonRedisSerializer&lt;&gt;(Object.class));
+<span class="nc" id="L36">        template.setValueSerializer(new StringRedisSerializer()); // Assuming boolean flags are stored as strings or converted</span>
+<span class="nc" id="L37">        template.setHashKeySerializer(new StringRedisSerializer());</span>
+<span class="nc" id="L38">        template.setHashValueSerializer(new StringRedisSerializer());</span>
+<span class="nc" id="L39">        template.afterPropertiesSet();</span>
+<span class="nc" id="L40">        return template;</span>
+    }
+
+    // Specific template for boolean flags if needed, to ensure type safety
+    @Bean
+    public RedisTemplate&lt;String, Boolean&gt; booleanRedisTemplate() {
+<span class="nc" id="L46">        RedisTemplate&lt;String, Boolean&gt; template = new RedisTemplate&lt;&gt;();</span>
+<span class="nc" id="L47">        template.setConnectionFactory(redisConnectionFactory());</span>
+<span class="nc" id="L48">        template.setKeySerializer(new StringRedisSerializer());</span>
+        // Using a simple string serializer for boolean, Spring Data Redis handles conversion
+        // Or use a custom serializer if specific format is needed
+        // For simplicity, relying on default conversion or ensuring service layer handles String&lt;-&gt;Boolean
+        // template.setValueSerializer(new GenericToStringSerializer&lt;&gt;(Boolean.class));
+<span class="nc" id="L53">        return template;</span>
+    }
+}
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

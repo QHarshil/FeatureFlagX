@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FlagService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">FeatureFlagX API</a> &gt; <a href="index.source.html" class="el_package">com.featureflagx.service</a> &gt; <span class="el_source">FlagService.java</span></div><h1>FlagService.java</h1><pre class="source lang-java linenums">package com.featureflagx.service;
+
+import com.featureflagx.model.Flag;
+import com.featureflagx.repository.FlagRepository;
+import com.featureflagx.dto.FlagRequest;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
+
+@Service
+public class FlagService {
+
+    private final FlagRepository flagRepository;
+    private final RedisTemplate&lt;String, Object&gt; redisTemplate; // Using Object value for flexibility, can be Boolean
+
+    private static final String REDIS_KEY_PREFIX = &quot;flag:&quot;;
+<span class="fc" id="L23">    private static final Duration REDIS_CACHE_TTL = Duration.ofMinutes(5);</span>
+
+    @Autowired
+<span class="fc" id="L26">    public FlagService(FlagRepository flagRepository, RedisTemplate&lt;String, Object&gt; redisTemplate) {</span>
+<span class="fc" id="L27">        this.flagRepository = flagRepository;</span>
+<span class="fc" id="L28">        this.redisTemplate = redisTemplate;</span>
+<span class="fc" id="L29">    }</span>
+
+    @Transactional
+    public Flag createFlag(FlagRequest flagRequest) {
+<span class="fc" id="L33">        Flag flag = new Flag();</span>
+<span class="fc" id="L34">        flag.setKey(flagRequest.getKey());</span>
+<span class="fc" id="L35">        flag.setEnabled(flagRequest.isEnabled());</span>
+<span class="fc" id="L36">        flag.setConfig(flagRequest.getConfig()); // Assuming config is a JSON string</span>
+<span class="fc" id="L37">        flag.setUpdatedAt(Instant.now());</span>
+<span class="fc" id="L38">        Flag savedFlag = flagRepository.save(flag);</span>
+<span class="fc" id="L39">        clearCache(savedFlag.getKey());</span>
+<span class="fc" id="L40">        return savedFlag;</span>
+    }
+
+    @Transactional
+    public Optional&lt;Flag&gt; updateFlag(String key, FlagRequest flagRequest) {
+<span class="fc" id="L45">        Optional&lt;Flag&gt; existingFlagOpt = flagRepository.findById(key);</span>
+<span class="fc bfc" id="L46" title="All 2 branches covered.">        if (existingFlagOpt.isPresent()) {</span>
+<span class="fc" id="L47">            Flag existingFlag = existingFlagOpt.get();</span>
+<span class="fc" id="L48">            existingFlag.setEnabled(flagRequest.isEnabled());</span>
+<span class="fc" id="L49">            existingFlag.setConfig(flagRequest.getConfig());</span>
+<span class="fc" id="L50">            existingFlag.setUpdatedAt(Instant.now());</span>
+<span class="fc" id="L51">            Flag updatedFlag = flagRepository.save(existingFlag);</span>
+<span class="fc" id="L52">            clearCache(updatedFlag.getKey());</span>
+<span class="fc" id="L53">            return Optional.of(updatedFlag);</span>
+        }
+<span class="fc" id="L55">        return Optional.empty();</span>
+    }
+
+    @Transactional
+    public boolean deleteFlag(String key) {
+<span class="fc bfc" id="L60" title="All 2 branches covered.">        if (flagRepository.existsById(key)) {</span>
+<span class="fc" id="L61">            flagRepository.deleteById(key);</span>
+<span class="fc" id="L62">            clearCache(key);</span>
+<span class="fc" id="L63">            return true;</span>
+        }
+<span class="fc" id="L65">        return false;</span>
+    }
+
+    public Optional&lt;Flag&gt; getFlag(String key) {
+<span class="fc" id="L69">        return flagRepository.findById(key);</span>
+    }
+
+    public List&lt;Flag&gt; getAllFlags() {
+<span class="fc" id="L73">        return flagRepository.findAll();</span>
+    }
+
+    public boolean isEnabled(String key, String targetId) {
+        // targetId is not used in this basic version but can be used for more complex evaluation logic
+<span class="fc" id="L78">        String redisKey = REDIS_KEY_PREFIX + key;</span>
+<span class="fc" id="L79">        Boolean cachedEnabled = (Boolean) redisTemplate.opsForValue().get(redisKey);</span>
+
+<span class="fc bfc" id="L81" title="All 2 branches covered.">        if (cachedEnabled != null) {</span>
+<span class="fc" id="L82">            return cachedEnabled;</span>
+        }
+
+<span class="fc" id="L85">        Optional&lt;Flag&gt; flagOpt = flagRepository.findById(key);</span>
+<span class="fc bfc" id="L86" title="All 2 branches covered.">        if (flagOpt.isPresent()) {</span>
+<span class="fc" id="L87">            boolean enabled = flagOpt.get().isEnabled();</span>
+<span class="fc" id="L88">            redisTemplate.opsForValue().set(redisKey, enabled, REDIS_CACHE_TTL);</span>
+<span class="fc" id="L89">            return enabled;</span>
+        }
+        // Default behavior for non-existent flag: false
+        // Cache the miss as well to prevent DB hammering for non-existent flags
+<span class="fc" id="L93">        redisTemplate.opsForValue().set(redisKey, false, REDIS_CACHE_TTL); </span>
+<span class="fc" id="L94">        return false;</span>
+    }
+
+    private void clearCache(String key) {
+<span class="fc" id="L98">        redisTemplate.delete(REDIS_KEY_PREFIX + key);</span>
+<span class="fc" id="L99">    }</span>
+}
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

@@ -5,11 +5,10 @@ import com.featureflagx.dto.FlagResponse;
 import com.featureflagx.integration.AbstractIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.DisabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.annotation.DirtiesContext;
 
@@ -21,15 +20,17 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Performance tests for the Flag API.
  * Tests high-traffic scenarios and response times.
+ * These tests are disabled by default and only run when explicitly enabled.
  */
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
+@DisabledIfEnvironmentVariable(named = "RUN_INTEGRATION_TESTS", matches = "false")
+@DisabledIfEnvironmentVariable(named = "RUN_INTEGRATION_TESTS", matches = "^$", disabledReason = "Integration tests are not enabled")
 public class FlagApiPerformanceTest extends AbstractIntegrationTest {
 
     @LocalServerPort

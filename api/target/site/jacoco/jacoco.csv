@@ -1,0 +1,9 @@
+GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
+FeatureFlagX API,com.featureflagx.service,FlagService,0,162,0,8,0,43,0,13,0,9
+FeatureFlagX API,com.featureflagx.dto,FlagResponse,0,53,0,0,0,12,0,10,0,10
+FeatureFlagX API,com.featureflagx.dto,FlagRequest,0,24,0,0,0,5,0,7,0,7
+FeatureFlagX API,com.featureflagx.config,RedisConfig,63,0,0,0,15,0,4,0,4,0
+FeatureFlagX API,com.featureflagx.config,DataSourceConfig,3,0,0,0,1,0,1,0,1,0
+FeatureFlagX API,com.featureflagx,Application,5,3,0,0,2,1,1,1,1,1
+FeatureFlagX API,com.featureflagx.controller,FlagController,0,105,1,5,0,26,1,13,0,11
+FeatureFlagX API,com.featureflagx.model,Flag,0,31,0,0,0,6,0,9,0,9

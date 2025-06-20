@@ -1,0 +1,12 @@
+README.md
+setup.py
+featureflagx/__init__.py
+featureflagx/sdk/__init__.py
+featureflagx/sdk/client.py
+featureflagx_sdk.egg-info/PKG-INFO
+featureflagx_sdk.egg-info/SOURCES.txt
+featureflagx_sdk.egg-info/dependency_links.txt
+featureflagx_sdk.egg-info/requires.txt
+featureflagx_sdk.egg-info/top_level.txt
+tests/test_client.py
+tests/test_integration.py

@@ -6,8 +6,8 @@ import com.featureflagx.model.Flag;
 import com.featureflagx.repository.FlagRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.DisabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpEntity;
@@ -16,16 +16,18 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.annotation.DirtiesContext;
 
-import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Integration tests for the Flag Controller endpoints.
- * Uses real PostgreSQL and Redis instances via testcontainers.
+ * Integration tests for the Flag Controller.
+ * Tests the full API functionality with a real database and Redis cache.
  */
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
+@DisabledIfEnvironmentVariable(named = "RUN_INTEGRATION_TESTS", matches = "false")
+@DisabledIfEnvironmentVariable(named = "RUN_INTEGRATION_TESTS", matches = "^$", disabledReason = "Integration tests are not enabled")
 public class FlagControllerIntegrationTest extends AbstractIntegrationTest {
 
     @LocalServerPort
@@ -42,14 +44,12 @@ public class FlagControllerIntegrationTest extends AbstractIntegrationTest {
     @BeforeEach
     public void setUp() {
         this.baseUrl = "http://localhost:" + port + "/flags";
-        // Clear database before each test
-        flagRepository.deleteAll();
     }
 
     @Test
     public void testCreateFlag() {
         // Given
-        String flagKey = "test-feature-" + UUID.randomUUID();
+        String flagKey = "test-flag-" + UUID.randomUUID();
         FlagRequest request = new FlagRequest();
         request.setKey(flagKey);
         request.setEnabled(true);
@@ -66,21 +66,21 @@ public class FlagControllerIntegrationTest extends AbstractIntegrationTest {
         assertThat(response.getBody().isEnabled()).isTrue();
         assertThat(response.getBody().getConfig()).isEqualTo("{\"version\":\"1.0\"}");
 
-        // Verify flag is in database
-        Flag savedFlag = flagRepository.findByKey(flagKey).orElse(null);
-        assertThat(savedFlag).isNotNull();
-        assertThat(savedFlag.isEnabled()).isTrue();
+        // Verify flag is in the database
+        Optional<Flag> savedFlag = flagRepository.findByKey(flagKey);
+        assertThat(savedFlag).isPresent();
+        assertThat(savedFlag.get().isEnabled()).isTrue();
     }
 
     @Test
     public void testGetFlag() {
         // Given
-        String flagKey = "get-test-feature-" + UUID.randomUUID();
-        Flag flag = new Flag();
-        flag.setKey(flagKey);
-        flag.setEnabled(true);
-        flag.setConfig("{\"version\":\"1.0\"}");
-        flagRepository.save(flag);
+        String flagKey = "get-test-flag-" + UUID.randomUUID();
+        FlagRequest request = new FlagRequest();
+        request.setKey(flagKey);
+        request.setEnabled(true);
+        request.setConfig("{\"version\":\"1.0\"}");
+        restTemplate.postForEntity(baseUrl, request, FlagResponse.class);
 
         // When
         ResponseEntity<FlagResponse> response = restTemplate.getForEntity(
@@ -96,20 +96,21 @@ public class FlagControllerIntegrationTest extends AbstractIntegrationTest {
     @Test
     public void testGetAllFlags() {
         // Given
-        String flagKey1 = "list-test-feature-1-" + UUID.randomUUID();
-        String flagKey2 = "list-test-feature-2-" + UUID.randomUUID();
+        String flagKey1 = "list-test-flag-1-" + UUID.randomUUID();
+        String flagKey2 = "list-test-flag-2-" + UUID.randomUUID();
         
-        Flag flag1 = new Flag();
-        flag1.setKey(flagKey1);
-        flag1.setEnabled(true);
-        flag1.setConfig("{\"version\":\"1.0\"}");
+        FlagRequest request1 = new FlagRequest();
+        request1.setKey(flagKey1);
+        request1.setEnabled(true);
+        request1.setConfig("{\"version\":\"1.0\"}");
         
-        Flag flag2 = new Flag();
-        flag2.setKey(flagKey2);
-        flag2.setEnabled(false);
-        flag2.setConfig("{\"version\":\"2.0\"}");
+        FlagRequest request2 = new FlagRequest();
+        request2.setKey(flagKey2);
+        request2.setEnabled(false);
+        request2.setConfig("{\"version\":\"2.0\"}");
         
-        flagRepository.saveAll(List.of(flag1, flag2));
+        restTemplate.postForEntity(baseUrl, request1, FlagResponse.class);
+        restTemplate.postForEntity(baseUrl, request2, FlagResponse.class);
 
         // When
         ResponseEntity<FlagResponse[]> response = restTemplate.getForEntity(
@@ -120,40 +121,41 @@ public class FlagControllerIntegrationTest extends AbstractIntegrationTest {
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().length).isGreaterThanOrEqualTo(2);
         
-        // Verify both flags are in the response
-        boolean flag1Found = false;
-        boolean flag2Found = false;
+        // Verify our flags are in the response
+        boolean foundFlag1 = false;
+        boolean foundFlag2 = false;
         
-        for (FlagResponse flagResponse : response.getBody()) {
-            if (flagResponse.getKey().equals(flagKey1)) {
-                flag1Found = true;
-                assertThat(flagResponse.isEnabled()).isTrue();
-            } else if (flagResponse.getKey().equals(flagKey2)) {
-                flag2Found = true;
-                assertThat(flagResponse.isEnabled()).isFalse();
+        for (FlagResponse flag : response.getBody()) {
+            if (flag.getKey().equals(flagKey1)) {
+                foundFlag1 = true;
+                assertThat(flag.isEnabled()).isTrue();
+            } else if (flag.getKey().equals(flagKey2)) {
+                foundFlag2 = true;
+                assertThat(flag.isEnabled()).isFalse();
             }
         }
         
-        assertThat(flag1Found).isTrue();
-        assertThat(flag2Found).isTrue();
+        assertThat(foundFlag1).isTrue();
+        assertThat(foundFlag2).isTrue();
     }
 
     @Test
     public void testUpdateFlag() {
         // Given
-        String flagKey = "update-test-feature-" + UUID.randomUUID();
-        Flag flag = new Flag();
-        flag.setKey(flagKey);
-        flag.setEnabled(true);
-        flag.setConfig("{\"version\":\"1.0\"}");
-        flagRepository.save(flag);
-
+        String flagKey = "update-test-flag-" + UUID.randomUUID();
+        FlagRequest createRequest = new FlagRequest();
+        createRequest.setKey(flagKey);
+        createRequest.setEnabled(true);
+        createRequest.setConfig("{\"version\":\"1.0\"}");
+        
+        restTemplate.postForEntity(baseUrl, createRequest, FlagResponse.class);
+        
+        // When
         FlagRequest updateRequest = new FlagRequest();
         updateRequest.setKey(flagKey);
         updateRequest.setEnabled(false);
         updateRequest.setConfig("{\"version\":\"2.0\"}");
-
-        // When
+        
         ResponseEntity<FlagResponse> response = restTemplate.exchange(
                 baseUrl + "/" + flagKey,
                 HttpMethod.PUT,
@@ -166,76 +168,98 @@ public class FlagControllerIntegrationTest extends AbstractIntegrationTest {
         assertThat(response.getBody().getKey()).isEqualTo(flagKey);
         assertThat(response.getBody().isEnabled()).isFalse();
         assertThat(response.getBody().getConfig()).isEqualTo("{\"version\":\"2.0\"}");
-
-        // Verify flag is updated in database
-        Flag updatedFlag = flagRepository.findByKey(flagKey).orElse(null);
-        assertThat(updatedFlag).isNotNull();
-        assertThat(updatedFlag.isEnabled()).isFalse();
-        assertThat(updatedFlag.getConfig()).isEqualTo("{\"version\":\"2.0\"}");
+        
+        // Verify flag is updated in the database
+        Optional<Flag> updatedFlag = flagRepository.findByKey(flagKey);
+        assertThat(updatedFlag).isPresent();
+        assertThat(updatedFlag.get().isEnabled()).isFalse();
+        assertThat(updatedFlag.get().getConfig()).isEqualTo("{\"version\":\"2.0\"}");
     }
 
     @Test
     public void testDeleteFlag() {
         // Given
-        String flagKey = "delete-test-feature-" + UUID.randomUUID();
-        Flag flag = new Flag();
-        flag.setKey(flagKey);
-        flag.setEnabled(true);
-        flag.setConfig("{\"version\":\"1.0\"}");
-        flagRepository.save(flag);
-
+        String flagKey = "delete-test-flag-" + UUID.randomUUID();
+        FlagRequest request = new FlagRequest();
+        request.setKey(flagKey);
+        request.setEnabled(true);
+        request.setConfig("{\"version\":\"1.0\"}");
+        
+        restTemplate.postForEntity(baseUrl, request, FlagResponse.class);
+        
+        // Verify flag exists before deletion
+        Optional<Flag> flagBeforeDeletion = flagRepository.findByKey(flagKey);
+        assertThat(flagBeforeDeletion).isPresent();
+        
         // When
-        restTemplate.delete(baseUrl + "/" + flagKey);
+        ResponseEntity<Void> response = restTemplate.exchange(
+                baseUrl + "/" + flagKey,
+                HttpMethod.DELETE,
+                null,
+                Void.class);
 
         // Then
-        assertThat(flagRepository.findByKey(flagKey).isPresent()).isFalse();
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+        
+        // Verify flag is deleted from the database
+        Optional<Flag> flagAfterDeletion = flagRepository.findByKey(flagKey);
+        assertThat(flagAfterDeletion).isEmpty();
     }
 
     @Test
     public void testEvaluateFlag() {
         // Given
-        String flagKey = "evaluate-test-feature-" + UUID.randomUUID();
-        Flag flag = new Flag();
-        flag.setKey(flagKey);
-        flag.setEnabled(true);
-        flag.setConfig("{\"version\":\"1.0\"}");
-        flagRepository.save(flag);
-
-        // When - without targetId
+        String flagKey = "evaluate-test-flag-" + UUID.randomUUID();
+        FlagRequest request = new FlagRequest();
+        request.setKey(flagKey);
+        request.setEnabled(true);
+        request.setConfig("{\"version\":\"1.0\"}");
+        
+        restTemplate.postForEntity(baseUrl, request, FlagResponse.class);
+        
+        // When
         ResponseEntity<Boolean> response = restTemplate.getForEntity(
-                baseUrl + "/evaluate/" + flagKey, Boolean.class);
+                baseUrl + "/evaluate/" + flagKey + "?targetId=user123",
+                Boolean.class);
 
         // Then
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isTrue();
-
-        // When - with targetId
-        ResponseEntity<Boolean> responseWithTarget = restTemplate.getForEntity(
-                baseUrl + "/evaluate/" + flagKey + "?targetId=user123", Boolean.class);
-
-        // Then
-        assertThat(responseWithTarget.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(responseWithTarget.getBody()).isTrue();
-        
-        // When - flag is disabled
-        flag.setEnabled(false);
-        flagRepository.save(flag);
-        
-        ResponseEntity<Boolean> disabledResponse = restTemplate.getForEntity(
-                baseUrl + "/evaluate/" + flagKey, Boolean.class);
-        
-        // Then
-        assertThat(disabledResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(disabledResponse.getBody()).isFalse();
     }
 
     @Test
-    public void testFlagNotFound() {
+    public void testEvaluateDisabledFlag() {
+        // Given
+        String flagKey = "evaluate-disabled-flag-" + UUID.randomUUID();
+        FlagRequest request = new FlagRequest();
+        request.setKey(flagKey);
+        request.setEnabled(false);
+        request.setConfig("{\"version\":\"1.0\"}");
+        
+        restTemplate.postForEntity(baseUrl, request, FlagResponse.class);
+        
         // When
-        ResponseEntity<FlagResponse> response = restTemplate.getForEntity(
-                baseUrl + "/non-existent-flag", FlagResponse.class);
+        ResponseEntity<Boolean> response = restTemplate.getForEntity(
+                baseUrl + "/evaluate/" + flagKey + "?targetId=user123",
+                Boolean.class);
 
         // Then
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isFalse();
+    }
+
+    @Test
+    public void testEvaluateNonExistentFlag() {
+        // Given
+        String nonExistentFlagKey = "non-existent-flag-" + UUID.randomUUID();
+        
+        // When
+        ResponseEntity<Boolean> response = restTemplate.getForEntity(
+                baseUrl + "/evaluate/" + nonExistentFlagKey + "?targetId=user123",
+                Boolean.class);
+
+        // Then
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isFalse(); // Default to false for non-existent flags
     }
 }

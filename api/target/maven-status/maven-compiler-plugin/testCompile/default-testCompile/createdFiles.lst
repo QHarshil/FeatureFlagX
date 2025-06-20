@@ -1,0 +1,6 @@
+com/featureflagx/integration/AbstractIntegrationTest$Initializer.class
+com/featureflagx/FlagServiceTest.class
+com/featureflagx/FlagControllerTest.class
+com/featureflagx/integration/FlagControllerIntegrationTest.class
+com/featureflagx/integration/AbstractIntegrationTest.class
+com/featureflagx/performance/FlagApiPerformanceTest.class
