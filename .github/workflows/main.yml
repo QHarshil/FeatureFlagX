@@ -75,8 +75,15 @@ jobs:
       run: |
         docker run -d -p 8080:8080 --name featureflagx-test ${{ secrets.DOCKERHUB_USERNAME }}/featureflagx-api:latest
         echo "⏳ Waiting for app startup..."
-        sleep 25
-        echo "🔍 Checking health endpoint..."
+        for i in {1..30}; do
+          if curl -s http://localhost:8080/actuator/health | grep '"status":"UP"' > /dev/null; then
+            echo "✅ Application is UP"
+            break
+          fi
+          echo "Waiting for app to start... ($i/30)"
+          sleep 2
+        done
+        # Check one last time to ensure it started successfully
         curl --fail http://localhost:8080/actuator/health
         docker stop featureflagx-test
         docker rm featureflagx-test
