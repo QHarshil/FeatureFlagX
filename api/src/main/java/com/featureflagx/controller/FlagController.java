@@ -4,18 +4,27 @@ import com.featureflagx.dto.FlagRequest;
 import com.featureflagx.dto.FlagResponse;
 import com.featureflagx.model.Flag;
 import com.featureflagx.service.FlagService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import javax.validation.Valid;
+import javax.validation.constraints.NotBlank;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
+/**
+ * REST controller for managing feature flags.
+ */
 @RestController
-@RequestMapping("/flags")
+@RequestMapping("/api/v1/flags")
+@CrossOrigin(origins = "*")
 public class FlagController {
+
+    private static final Logger logger = LoggerFactory.getLogger(FlagController.class);
 
     private final FlagService flagService;
 
@@ -24,55 +33,123 @@ public class FlagController {
         this.flagService = flagService;
     }
 
+    /**
+     * Create a new feature flag.
+     */
     @PostMapping
-    public ResponseEntity<FlagResponse> createFlag(@RequestBody FlagRequest flagRequest) {
-        if (flagRequest.getKey() == null || flagRequest.getKey().trim().isEmpty()) {
-            return ResponseEntity.badRequest().build(); // Or a custom error response
+    public ResponseEntity<?> createFlag(@Valid @RequestBody FlagRequest flagRequest) {
+        try {
+            logger.info("Creating flag: {}", flagRequest.getKey());
+            Flag createdFlag = flagService.createFlag(flagRequest);
+            FlagResponse response = FlagResponse.fromFlag(createdFlag);
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } catch (Exception e) {
+            logger.error("Error creating flag: {}", e.getMessage());
+            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
         }
-        Flag createdFlag = flagService.createFlag(flagRequest);
-        return ResponseEntity.status(HttpStatus.CREATED).body(FlagResponse.fromFlag(createdFlag));
     }
 
+    /**
+     * Update an existing feature flag.
+     */
     @PutMapping("/{key}")
-    public ResponseEntity<FlagResponse> updateFlag(@PathVariable String key, @RequestBody FlagRequest flagRequest) {
-        Optional<Flag> updatedFlagOpt = flagService.updateFlag(key, flagRequest);
-        return updatedFlagOpt
-                .map(flag -> ResponseEntity.ok(FlagResponse.fromFlag(flag)))
-                .orElseGet(() -> ResponseEntity.notFound().build());
-    }
-
-    @DeleteMapping("/{key}")
-    public ResponseEntity<Void> deleteFlag(@PathVariable String key) {
-        boolean deleted = flagService.deleteFlag(key);
-        if (deleted) {
-            return ResponseEntity.noContent().build();
+    public ResponseEntity<?> updateFlag(@PathVariable @NotBlank String key, 
+                                       @Valid @RequestBody FlagRequest flagRequest) {
+        try {
+            logger.info("Updating flag: {}", key);
+            Flag updatedFlag = flagService.updateFlag(key, flagRequest);
+            FlagResponse response = FlagResponse.fromFlag(updatedFlag);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            logger.error("Error updating flag {}: {}", key, e.getMessage());
+            if (e.getMessage().contains("not found")) {
+                return ResponseEntity.notFound().build();
+            }
+            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
         }
-        return ResponseEntity.notFound().build();
     }
 
+    /**
+     * Delete a feature flag.
+     */
+    @DeleteMapping("/{key}")
+    public ResponseEntity<?> deleteFlag(@PathVariable @NotBlank String key) {
+        try {
+            logger.info("Deleting flag: {}", key);
+            flagService.deleteFlag(key);
+            return ResponseEntity.noContent().build();
+        } catch (Exception e) {
+            logger.error("Error deleting flag {}: {}", key, e.getMessage());
+            if (e.getMessage().contains("not found")) {
+                return ResponseEntity.notFound().build();
+            }
+            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Get a specific feature flag.
+     */
     @GetMapping("/{key}")
-    public ResponseEntity<FlagResponse> getFlag(@PathVariable String key) {
-        Optional<Flag> flagOpt = flagService.getFlag(key);
-        return flagOpt
-                .map(flag -> ResponseEntity.ok(FlagResponse.fromFlag(flag)))
-                .orElseGet(() -> ResponseEntity.notFound().build());
+    public ResponseEntity<?> getFlag(@PathVariable @NotBlank String key) {
+        try {
+            logger.debug("Getting flag: {}", key);
+            Flag flag = flagService.getFlag(key);
+            FlagResponse response = FlagResponse.fromFlag(flag);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            logger.error("Error getting flag {}: {}", key, e.getMessage());
+            if (e.getMessage().contains("not found")) {
+                return ResponseEntity.notFound().build();
+            }
+            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
+        }
     }
 
+    /**
+     * Get all feature flags with optional filtering.
+     */
     @GetMapping
-    public ResponseEntity<List<FlagResponse>> getAllFlags() {
-        List<Flag> flags = flagService.getAllFlags();
-        List<FlagResponse> flagResponses = flags.stream()
+    public ResponseEntity<?> getAllFlags(@RequestParam(required = false) String search,
+                                        @RequestParam(required = false) Boolean enabled) {
+        try {
+            logger.debug("Getting all flags (search: {}, enabled: {})", search, enabled);
+            
+            List<Flag> flags;
+            
+            if (search != null && !search.trim().isEmpty()) {
+                flags = flagService.searchFlags(search);
+            } else if (enabled != null) {
+                flags = enabled ? flagService.getEnabledFlags() : flagService.getDisabledFlags();
+            } else {
+                flags = flagService.getAllFlags();
+            }
+            
+            List<FlagResponse> responses = flags.stream()
                 .map(FlagResponse::fromFlag)
                 .collect(Collectors.toList());
-        return ResponseEntity.ok(flagResponses);
+            
+            return ResponseEntity.ok(responses);
+        } catch (Exception e) {
+            logger.error("Error getting flags: {}", e.getMessage());
+            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
+        }
     }
 
+    /**
+     * Evaluate a feature flag (public endpoint for high performance).
+     */
     @GetMapping("/evaluate/{key}")
-    public ResponseEntity<Boolean> evaluateFlag(@PathVariable String key, @RequestParam(required = false) String targetId) {
-        // targetId is passed to service, though current service logic doesn't use it for evaluation
-        boolean isEnabled = flagService.isEnabled(key, targetId);
-        // Even if flag doesn't exist, isEnabled returns false, so we don't need specific notFound handling here for evaluation
-        return ResponseEntity.ok(isEnabled);
+    public ResponseEntity<Boolean> evaluateFlag(@PathVariable @NotBlank String key,
+                                               @RequestParam(required = false) String targetId) {
+        try {
+            logger.debug("Evaluating flag: {} for target: {}", key, targetId);
+            boolean isEnabled = flagService.isEnabled(key, targetId);
+            return ResponseEntity.ok(isEnabled);
+        } catch (Exception e) {
+            logger.error("Error evaluating flag {}: {}", key, e.getMessage());
+            // Return false for any error to fail safely
+            return ResponseEntity.ok(false);
+        }
     }
 }
-

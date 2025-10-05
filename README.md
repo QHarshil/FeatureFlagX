@@ -1,255 +1,251 @@
-# FeatureFlagX: Universal Feature-Flag Service & SDK
+# FeatureFlagX: Production-Ready Feature Flag Service
 
-FeatureFlagX is a comprehensive feature flagging solution designed to empower development teams to safely roll out new features, conduct A/B tests, and manage application functionality without requiring redeployments. This project provides a robust Java Spring Boot HTTP API for managing and evaluating feature flags, with durable storage via PostgreSQL and a high-performance evaluation cache using Redis. It also includes client SDKs for various languages to integrate feature flagging capabilities seamlessly into different application environments.
+FeatureFlagX is a lightweight, high-performance feature flag service built with Java and Spring Boot. It provides a centralized platform for managing application features, enabling safe rollouts, A/B testing, and dynamic configuration changes without requiring application redeployments.
 
-## 1. Purpose & Use Case
+## 🚀 Quick Start (5 Minutes)
 
-Feature toggles (or feature flags) are a powerful technique that allows teams to modify system behavior without changing code and/or redeploying. FeatureFlagX aims to provide a centralized and easy-to-use service for this purpose.
+### Prerequisites
 
-**Key use cases include:**
-- **Safe Rollouts:** Gradually release new features to a subset of users before a full rollout.
-- **A/B Testing:** Test different versions of a feature with different user segments.
-- **Kill Switches:** Quickly disable problematic features in production without a rollback.
-- **Trunk-Based Development:** Allow developers to merge code to the main branch more frequently, with new features hidden behind flags until ready.
+- **Docker & Docker Compose**: [Install Docker](https://docs.docker.com/get-docker/)
 
-**Target Consumers:**
-- Microservices (e.g., Java, Python) needing to toggle endpoints or backend logic.
-- Frontend/SSR applications (e.g., TypeScript) for UI experiments and conditional rendering.
-- Embedded or performance-sensitive systems (e.g., C) requiring lightweight flag evaluation.
+### Launch the Service
 
-## 2. Tech Stack
+1. **Clone or download this project**
 
-| Layer              | Technology                                      |
-|--------------------|-------------------------------------------------|
-| API Service        | Java 17 + Spring Boot                           |
-| Persistence        | PostgreSQL (via Spring Data JPA)                |
-| Cache / Eval Store | Redis (via Spring Data Redis)                   |
-| SDKs / Clients     | Java (Maven), Python (pip), TypeScript (npm), C |
-| Deployment         | Docker, Docker Compose (Kubernetes optional)    |
-| CI/CD (Conceptual) | GitHub Actions                                  |
-| Monitoring         | Prometheus + Grafana (via Spring Boot Actuator) |
+2. **Navigate to the project directory**
+   ```bash
+   cd featureflagx-mvp
+   ```
 
-## 3. High-Level Design
+3. **Start all services**
+   ```bash
+   docker-compose up --build
+   ```
 
-The system consists of a central API service and client SDKs.
+4. **Verify the service is running**
+   ```bash
+   curl http://localhost:8080/actuator/health
+   ```
 
-```mermaid
-flowchart LR
-  subgraph "Client Applications"
-    App1[Java App]
-    App2[Python App]
-    App3[TypeScript App]
-    App4[C Application]
-  end
+   Expected response:
+   ```json
+   {"status":"UP"}
+   ```
 
-  subgraph "FeatureFlagX SDKs"
-    JavaSDK[Java SDK]
-    PySDK[Python SDK]
-    TsSDK[TypeScript SDK]
-    CSDK[C SDK]
-  end
+**That's it!** The service is now running and ready to use.
 
-  API[FeatureFlagX Spring Boot API]
-  Postgres[(PostgreSQL Database)]
-  RedisCache[(Redis Cache)]
+## 📋 API Usage Examples
 
-  App1 --> JavaSDK
-  App2 --> PySDK
-  App3 --> TsSDK
-  App4 --> CSDK
+### Evaluate a Flag (Public Endpoint)
 
-  JavaSDK --> API
-  PySDK --> API
-  TsSDK --> API
-  CSDK --> API
-  
-  JavaSDK -.-> RedisCache
-  PySDK -.-> RedisCache
-  TsSDK -.-> RedisCache
-  CSDK -.-> RedisCache
+Check if a feature is enabled. This endpoint is optimized for high performance and doesn't require authentication.
 
-  API <--> Postgres
-  API <--> RedisCache
+```bash
+# Check the 'welcome-banner' flag (pre-seeded as enabled)
+curl http://localhost:8080/api/v1/flags/evaluate/welcome-banner
+# Returns: true
+
+# Check the 'beta-features' flag (pre-seeded as disabled)
+curl http://localhost:8080/api/v1/flags/evaluate/beta-features
+# Returns: false
+
+# Check a non-existent flag (returns false by default)
+curl http://localhost:8080/api/v1/flags/evaluate/non-existent
+# Returns: false
 ```
 
-**Flag CRUD Operations:**
-- `POST /flags`, `PUT /flags/{key}`, `DELETE /flags/{key}`
-- The API Controller delegates to a Service layer.
-- The Service layer writes to PostgreSQL via Spring Data JPA.
-- The Service layer invalidates the corresponding Redis cache entry (e.g., `DELETE flag:{key}`).
+### Get All Flags
 
-**Flag Evaluation:**
-- `GET /evaluate/{key}?targetId={target}`
-- The Service layer first attempts to retrieve the flag's state from Redis.
-- On a cache miss, it loads the flag from PostgreSQL, populates the Redis cache with a Time-To-Live (TTL), and then returns the state.
-
-**Client SDKs:**
-- Wrap HTTP calls to the FeatureFlagX API.
-- Implement local in-process caching (e.g., using Caffeine for Java SDK) to reduce latency and API load.
-- Provide a simple interface, such as `FeatureFlagClient.isEnabled(flagKey, targetId, defaultValue)`.
-
-## 4. Project File Structure
-
-```
-featureflagx/
-├── README.md
-├── docker-compose.yml
-├── api/
-│   ├── pom.xml
-│   ├── src/
-│   │   ├── main/
-│   │   │   ├── java/com/featureflagx/
-│   │   │   │   ├── Application.java
-│   │   │   │   ├── config/           # DataSourceConfig.java, RedisConfig.java
-│   │   │   │   ├── controller/       # FlagController.java
-│   │   │   │   ├── model/            # Flag.java (JPA Entity)
-│   │   │   │   ├── repository/       # FlagRepository.java
-│   │   │   │   ├── service/          # FlagService.java
-│   │   │   │   └── dto/              # FlagRequest.java, FlagResponse.java
-│   │   │   └── resources/
-│   │   │       └── application.yml
-│   │   └── test/
-│   │       └── java/com/featureflagx/  # FlagServiceTest.java, FlagControllerTest.java
-│   └── Dockerfile
-├── sdk-java/
-│   ├── pom.xml
-│   └── src/main/java/com/featureflagx/sdk/
-│       └── FeatureFlagClient.java
-├── sdk-python/               # Python SDK
-├── sdk-ts/                   # TypeScript SDK
-└── sdk-c/                    # Placeholder for C SDK
-    └── README.md
+```bash
+curl http://localhost:8080/api/v1/flags
 ```
 
-## 5. Setup and Running the API Service
+### Create a New Flag
 
-**Prerequisites:**
-- Docker and Docker Compose
-- Java 17+ and Maven (for building the API from source or developing)
+```bash
+curl -X POST http://localhost:8080/api/v1/flags \
+  -H "Content-Type: application/json" \
+  -d '{
+    "key": "new-checkout-flow",
+    "enabled": true,
+    "config": "{\"version\": \"v2\", \"timeout\": 5000}"
+  }'
+```
 
-**Using Docker Compose (Recommended):**
-1.  **Clone the repository.**
-2.  **Navigate to the `featureflagx` directory.**
-3.  **Environment Variables:**
-    The `docker-compose.yml` and `api/src/main/resources/application.yml` are configured to use environment variables for sensitive information like database credentials. You can set these variables in your environment or create a `.env` file in the `featureflagx` root directory with the following content:
-    ```env
-    # .env file (example)
-    DB_USER=admin
-    DB_PASSWORD=securepassword123
-    DB_NAME=featureflags
-    # REDIS_PASSWORD=yourredispassword # Uncomment if you set a password for Redis
-    ```
-    If a `.env` file is not used, default values from `docker-compose.yml` or `application.yml` will be attempted.
-4.  **Build and Run:**
-    ```bash
-    docker-compose up --build
-    ```
-    This command will build the API Docker image (if not already built) and start the API service, PostgreSQL database, and Redis cache.
-    The API will be accessible at `http://localhost:8080`.
+### Update a Flag
 
-**Building and Running Manually (for development):**
-1.  **Start PostgreSQL and Redis:** You can use the provided `docker-compose.yml` to start only the database and cache:
-    ```bash
-    docker-compose up -d db redis
-    ```
-    Ensure the connection details in `api/src/main/resources/application.yml` match your setup (or are overridden by environment variables).
-2.  **Build the API:**
-    Navigate to the `api/` directory:
-    ```bash
-    cd api
-    mvn clean package
-    ```
-3.  **Run the API:**
-    ```bash
-    java -jar target/api-0.1.0.jar 
-    # You might need to set Spring profiles or environment variables for DB/Redis connection
-    # e.g., SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/ffx ...
-    ```
+```bash
+curl -X PUT http://localhost:8080/api/v1/flags/new-checkout-flow \
+  -H "Content-Type: application/json" \
+  -d '{
+    "key": "new-checkout-flow",
+    "enabled": false,
+    "config": "{\"version\": \"v1\"}"
+  }'
+```
 
-## 6. API Endpoints
+### Delete a Flag
 
--   `POST /flags`: Create a new feature flag.
-    -   Request Body: `FlagRequest` JSON (`{ "key": "my-new-feature", "enabled": true, "config": "{\"version\": \"v1\"}" }`)
--   `PUT /flags/{key}`: Update an existing feature flag.
-    -   Request Body: `FlagRequest` JSON
--   `DELETE /flags/{key}`: Delete a feature flag.
--   `GET /flags/{key}`: Retrieve a specific feature flag.
--   `GET /flags`: Retrieve all feature flags.
--   `GET /flags/evaluate/{key}?targetId={targetId}`: Evaluate a feature flag. Returns `true` or `false`.
-    -   `targetId` is optional and can be used for more complex targeting rules in future enhancements.
+```bash
+curl -X DELETE http://localhost:8080/api/v1/flags/new-checkout-flow
+```
 
-## 7. Java SDK Usage
+### Search Flags
 
-Refer to the `sdk-java/README.md` (to be created) for detailed usage instructions for the Java SDK.
+```bash
+# Search for flags containing "welcome"
+curl "http://localhost:8080/api/v1/flags?search=welcome"
 
-**Basic Example:**
-```java
-// In your Java application
-FeatureFlagClient.Config sdkConfig = FeatureFlagClient.Config.builder()
-    .apiBaseUrl("http://localhost:8080") // URL of your FeatureFlagX API
-    .build();
-FeatureFlagClient client = new FeatureFlagClient(sdkConfig);
+# Get only enabled flags
+curl "http://localhost:8080/api/v1/flags?enabled=true"
 
-String flagKey = "new-checkout-flow";
-String userId = "user-12345";
-boolean isEnabled = client.isEnabled(flagKey, userId, false); // false is the default value
+# Get only disabled flags
+curl "http://localhost:8080/api/v1/flags?enabled=false"
+```
 
-if (isEnabled) {
-    // Show new checkout flow
-} else {
-    // Show old checkout flow
+## 🏗️ Architecture
+
+The system consists of three main components:
+
+| Component | Technology | Purpose |
+|-----------|------------|---------|
+| **API Service** | Java 11 + Spring Boot | RESTful API for flag management and evaluation |
+| **Database** | PostgreSQL 15 | Persistent storage for flag configurations |
+| **Cache** | Redis 7 | High-performance caching for flag evaluation |
+
+### High-Level Flow
+
+```
+Client Request → API Service → Redis Cache (if available) → PostgreSQL (if cache miss) → Response
+```
+
+The service is designed to be **fault-tolerant**. If Redis is unavailable, the API will automatically fall back to PostgreSQL, ensuring your application continues to work.
+
+## 🔧 Configuration
+
+The service comes with sensible defaults but can be customized via environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DB_HOST` | `localhost` | PostgreSQL host |
+| `DB_PORT` | `5432` | PostgreSQL port |
+| `DB_NAME` | `featureflagx` | Database name |
+| `DB_USER` | `postgres` | Database username |
+| `DB_PASSWORD` | `password` | Database password |
+| `REDIS_HOST` | `localhost` | Redis host |
+| `REDIS_PORT` | `6379` | Redis port |
+
+## 🧪 Testing
+
+### Prerequisites for Local Development
+
+- Java 11+
+- Maven 3.6+
+
+### Run Tests
+
+```bash
+cd api
+mvn test
+```
+
+### Build from Source
+
+```bash
+cd api
+mvn clean package
+```
+
+## 📊 Monitoring
+
+The service exposes health and monitoring endpoints:
+
+- **Health Check**: `GET /actuator/health`
+- **Application Info**: `GET /actuator/info`
+
+## 🔒 Security Features
+
+- **Input Validation**: All API inputs are validated to prevent malformed data
+- **Fail-Safe Defaults**: Non-existent flags return `false` by default
+- **Container Security**: Runs as non-root user in Docker
+- **Error Handling**: Comprehensive error handling with proper HTTP status codes
+
+## 📁 Project Structure
+
+```
+featureflagx-mvp/
+├── README.md                    # This file
+├── docker-compose.yml           # Docker orchestration
+├── init-db.sql                  # Database initialization
+└── api/                         # Spring Boot application
+    ├── Dockerfile
+    ├── pom.xml                  # Maven dependencies
+    └── src/
+        ├── main/java/com/featureflagx/
+        │   ├── Application.java         # Main application class
+        │   ├── controller/              # REST controllers
+        │   ├── dto/                     # Data transfer objects
+        │   ├── model/                   # JPA entities
+        │   ├── repository/              # Data repositories
+        │   └── service/                 # Business logic
+        └── test/                        # Unit tests
+```
+
+## 🚀 Production Deployment
+
+For production deployment, consider:
+
+1. **Environment Variables**: Override default passwords and configuration
+2. **HTTPS**: Use a reverse proxy (nginx, ALB) to terminate SSL
+3. **Monitoring**: Integrate with your monitoring stack via `/actuator` endpoints
+4. **Scaling**: The service is stateless and can be horizontally scaled
+5. **Database**: Use managed PostgreSQL and Redis services for high availability
+
+## 📝 API Reference
+
+### Flag Object
+
+```json
+{
+  "key": "feature-name",           // Unique identifier (kebab-case)
+  "enabled": true,                 // Whether the flag is enabled
+  "config": "{\"version\": \"v1\"}", // Optional JSON configuration
+  "createdAt": "2023-10-27T10:00:00",
+  "updatedAt": "2023-10-27T10:05:00"
 }
 ```
 
-## 8. Other SDKs (Python, TypeScript, C)
+### Validation Rules
 
-SDKs (`sdk-python/`, `sdk-ts/`) and a placeholder for (`sdk-c/`) are included in the project. SDK-C is intended to be developed in the future. Each SDK directory contains/will contain its own `README.md` with specific usage instructions.
+- **Flag Key**: Must be kebab-case (lowercase letters, numbers, hyphens only)
+- **Config**: Optional, maximum 10,000 characters
+- **Key Length**: 1-255 characters
 
-## 9. CI/CD
+### HTTP Status Codes
 
-A basic CI/CD pipeline has been set up using GitHub Actions. Workflow (`.github/workflows/main.yml`) includes the following steps:
+| Code | Meaning | When |
+|------|---------|------|
+| `200` | OK | Successful operation |
+| `201` | Created | Flag created successfully |
+| `204` | No Content | Flag deleted successfully |
+| `400` | Bad Request | Invalid input or validation error |
+| `404` | Not Found | Flag not found |
+| `500` | Internal Server Error | Unexpected server error |
 
-1.  **Checkout Code:** Checks out the repository.
-2.  **Set up JDK:** Initializes the Java environment.
-3.  **Build API:** Compiles the Spring Boot API and runs tests (`mvn clean package` or `mvn verify` in the `api/` directory).
-4.  **Build SDKs:** Compiles and tests each SDK (e.g., `mvn test` for `sdk-java/`).
-5.  **Build Docker Image:** Builds the Docker image for the API service.
-6.  **Push Docker Image:** Pushes the built image to a container registry (e.g., Docker Hub, GitHub Container Registry).
-7.  **Publish SDKs:** Publishes SDK artifacts to package repositories (e.g., Maven Central for Java, PyPI for Python, npm for TypeScript).
+## 🤝 Contributing
 
-**Example `.github/workflows/main.yml`:**
-```yaml
-name: FeatureFlagX CI
+This is a production-ready MVP. For enhancements:
 
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+1. Fork the repository
+2. Create a feature branch
+3. Add tests for new functionality
+4. Ensure all tests pass
+5. Submit a pull request
 
-jobs:
-  build-and-test-api:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v3
-    - name: Set up JDK 17
-      uses: actions/setup-java@v3
-      with:
-        java-version: '17'
-        distribution: 'temurin'
-        cache: maven
+## 📄 License
 
-    - name: Build and Test API with Maven
-      working-directory: ./api
-      run: mvn -B verify --file pom.xml
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-    # Add steps for Docker build and push if needed
-    # - name: Build and push Docker image
-    #   uses: docker/build-push-action@v2
-    #   with:
-    #     context: ./api
-    #     push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-    #     tags: your-docker-repo/featureflagx-api:latest
-```
+---
 
-
+**Built with ❤️ for reliable feature flag management**

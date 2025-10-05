@@ -1,32 +1,39 @@
-# Use an official OpenJDK runtime as a parent image
-FROM eclipse-temurin:17-jdk-jammy
+# Multi-stage build for optimal image size
+FROM maven:3.9.5-eclipse-temurin-11 AS builder
 
-# Set the working directory in the container
+WORKDIR /app
+COPY pom.xml .
+RUN mvn dependency:go-offline -B
+
+COPY src ./src
+RUN mvn clean package -DskipTests -B
+
+# Production stage
+FROM eclipse-temurin:11-jre-alpine
+
+# Create non-root user
+RUN addgroup -g 1001 -S appgroup && \
+    adduser -u 1001 -S appuser -G appgroup
+
 WORKDIR /app
 
-# Arguments for user and group
-ARG APP_USER=appuser
-ARG APP_GROUP=appgroup
+# Install curl for health checks
+RUN apk add --no-cache curl
 
-# Create a non-root user and group
-RUN groupadd -r ${APP_GROUP} && useradd --no-log-init -r -g ${APP_GROUP} ${APP_USER}
+# Copy the built JAR
+COPY --from=builder /app/target/*.jar app.jar
 
-# Copy thefat jar to the container
-# Ensure your Spring Boot application is packaged as a fat JAR (e.g., api-0.1.0.jar)
-# The JAR file name might need to be adjusted based on your pom.xml (artifactId and version)
-ARG JAR_FILE=target/api-0.1.0.jar
-COPY ${JAR_FILE} app.jar
+# Change ownership
+RUN chown -R appuser:appgroup /app
 
-# Make port 8080 available to the world outside this container
-# This is informational; actual port mapping is done in docker-compose or docker run
+# Switch to non-root user
+USER appuser
+
 EXPOSE 8080
 
-# Change ownership of the app directory and jar file to the non-root user
-RUN chown -R ${APP_USER}:${APP_GROUP} /app
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8080/actuator/health || exit 1
 
-# Switch to the non-root user
-USER ${APP_USER}
-
-# Run the jar file 
-ENTRYPOINT ["java","-jar","/app/app.jar"]
-
+# Run the application
+ENTRYPOINT ["java", "-jar", "app.jar"]

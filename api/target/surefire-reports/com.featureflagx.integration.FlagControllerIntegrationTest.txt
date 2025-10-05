@@ -1,7 +1,0 @@
--------------------------------------------------------------------------------
-Test set: com.featureflagx.integration.FlagControllerIntegrationTest
--------------------------------------------------------------------------------
-Tests run: 1, Failures: 0, Errors: 1, Skipped: 0, Time elapsed: 0.619 s <<< FAILURE! - in com.featureflagx.integration.FlagControllerIntegrationTest
-com.featureflagx.integration.FlagControllerIntegrationTest  Time elapsed: 0.619 s  <<< ERROR!
-java.lang.IllegalStateException: Previous attempts to find a Docker environment failed. Will not retry. Please see logs and check configuration
-
