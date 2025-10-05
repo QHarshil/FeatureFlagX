@@ -73,35 +73,29 @@ jobs:
 
     - name: ✅ Smoke Test Docker Container
       run: |
-        echo "🚀 Starting container for smoke test..."
-        docker run -d -p 8080:8080 --name featureflagx-test ${{ secrets.DOCKERHUB_USERNAME }}/featureflagx-api:latest
+        echo "🚀 Starting container for smoke test with H2 DB..."
+        docker run -d -p 8080:8080 --name featureflagx-test \
+          -e SPRING_PROFILES_ACTIVE=test \
+          -e SPRING_DATASOURCE_URL=jdbc:h2:mem:testdb \
+          -e SPRING_JPA_HIBERNATE_DDL_AUTO=create-drop \
+          -e SPRING_DATASOURCE_DRIVER_CLASS_NAME=org.h2.Driver \
+          ${{ secrets.DOCKERHUB_USERNAME }}/featureflagx-api:latest
+
         echo "⏳ Waiting for app startup..."
-        
-        # Show startup logs for debugging
-        for i in {1..45}; do
-          if docker logs featureflagx-test 2>&1 | grep -q "Started"; then
-            echo "✅ Detected Spring Boot startup log"
-            break
-          fi
-          sleep 2
-        done
-        
-        echo "🔍 Checking health endpoint..."
-        for i in {1..45}; do
+        for i in {1..60}; do
           if curl -s http://localhost:8080/actuator/health | grep '"status":"UP"' > /dev/null; then
             echo "✅ Application is UP"
             break
           fi
-          echo "Waiting for app to start... ($i/45)"
+          echo "Waiting for app to start... ($i/60)"
           sleep 2
         done
 
-        # Final validation
+        echo "🔍 Final health check..."
         curl --fail http://localhost:8080/actuator/health || (docker logs featureflagx-test && exit 1)
 
         docker stop featureflagx-test
         docker rm featureflagx-test
-
     - name: 🚀 Push Docker Image
       run: |
         docker push ${{ secrets.DOCKERHUB_USERNAME }}/featureflagx-api:latest
