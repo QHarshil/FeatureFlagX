@@ -71,11 +71,12 @@ jobs:
         docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/featureflagx-api:latest \
                      -t ${{ secrets.DOCKERHUB_USERNAME }}/featureflagx-api:${{ github.sha }} .
 
-    - name: ✅ Smoke Test Docker Container
+        - name: ✅ Smoke Test Docker Container
       run: |
-        echo "🚀 Starting container for smoke test with H2 DB..."
+        echo "🚀 Starting container for smoke test (no Redis, using H2)..."
         docker run -d -p 8080:8080 --name featureflagx-test \
           -e SPRING_PROFILES_ACTIVE=test \
+          -e SPRING_AUTOCONFIGURE_EXCLUDE=org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration \
           -e SPRING_DATASOURCE_URL=jdbc:h2:mem:testdb \
           -e SPRING_JPA_HIBERNATE_DDL_AUTO=create-drop \
           -e SPRING_DATASOURCE_DRIVER_CLASS_NAME=org.h2.Driver \
