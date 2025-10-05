@@ -73,18 +73,32 @@ jobs:
 
     - name: ✅ Smoke Test Docker Container
       run: |
+        echo "🚀 Starting container for smoke test..."
         docker run -d -p 8080:8080 --name featureflagx-test ${{ secrets.DOCKERHUB_USERNAME }}/featureflagx-api:latest
         echo "⏳ Waiting for app startup..."
-        for i in {1..30}; do
+        
+        # Show startup logs for debugging
+        for i in {1..45}; do
+          if docker logs featureflagx-test 2>&1 | grep -q "Started"; then
+            echo "✅ Detected Spring Boot startup log"
+            break
+          fi
+          sleep 2
+        done
+        
+        echo "🔍 Checking health endpoint..."
+        for i in {1..45}; do
           if curl -s http://localhost:8080/actuator/health | grep '"status":"UP"' > /dev/null; then
             echo "✅ Application is UP"
             break
           fi
-          echo "Waiting for app to start... ($i/30)"
+          echo "Waiting for app to start... ($i/45)"
           sleep 2
         done
-        # Check one last time to ensure it started successfully
-        curl --fail http://localhost:8080/actuator/health
+
+        # Final validation
+        curl --fail http://localhost:8080/actuator/health || (docker logs featureflagx-test && exit 1)
+
         docker stop featureflagx-test
         docker rm featureflagx-test
 
