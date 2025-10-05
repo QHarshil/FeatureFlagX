@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 FeatureFlagX SDK Demo Script
 This script demonstrates how to use the FeatureFlagX Python SDK with a mock API server

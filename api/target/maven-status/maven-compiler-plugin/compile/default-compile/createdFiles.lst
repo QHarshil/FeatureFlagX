@@ -1,3 +1,9 @@
-com\featureflagx\dto\FlagRequest.class
-com\featureflagx\model\Flag.class
-com\featureflagx\config\RedisConfig.class
+com/featureflagx/repository/FlagRepository.class
+com/featureflagx/config/RedisConfig.class
+com/featureflagx/Application.class
+com/featureflagx/controller/FlagController.class
+com/featureflagx/service/FlagService.class
+com/featureflagx/dto/FlagResponse.class
+com/featureflagx/model/Flag.class
+com/featureflagx/config/DataSourceConfig.class
+com/featureflagx/dto/FlagRequest.class
