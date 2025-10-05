@@ -1,6 +1,7 @@
 spring:
   main:
-    allow-bean-definition-overriding: true  # ✅ Added line — fixes duplicate redisTemplate issue
+    allow-bean-definition-overriding: true  # Prevent bean conflicts (e.g., redisTemplate)
+    banner-mode: "off"  # Optional: cleaner CI logs
 
   datasource:
     url: jdbc:h2:mem:testdb
@@ -14,10 +15,16 @@ spring:
     database-platform: org.hibernate.dialect.H2Dialect
     show-sql: false
 
-  # Disable Redis autoconfiguration for tests (since TestRedisConfiguration provides its own)
+  # Completely disable Redis in test profile
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+
+# Optional flag you can read in RedisConfig to skip bean creation
+featureflagx:
+  redis:
+    enabled: false
 
 logging:
   level:
