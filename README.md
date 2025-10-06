@@ -7,6 +7,8 @@ FeatureFlagX is a lightweight, high-performance feature flag service built with 
 ### Prerequisites
 
 - **Docker & Docker Compose**: [Install Docker](https://docs.docker.com/get-docker/)
+- **Ensure you are logged into docker with `docker login`**
+
 
 ### Launch the Service
 

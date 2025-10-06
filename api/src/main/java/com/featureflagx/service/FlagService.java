@@ -30,7 +30,7 @@ public class FlagService {
 
     @Autowired
     public FlagService(FlagRepository flagRepository,
-                       @Autowired(required = false) RedisTemplate<String, Object> redisTemplate) { // ✅ Optional injection
+                       @Autowired(required = false) RedisTemplate<String, Object> redisTemplate) { //Optional injection
         this.flagRepository = flagRepository;
         this.redisTemplate = redisTemplate;
     }
