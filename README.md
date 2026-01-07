@@ -1,131 +1,66 @@
-# FeatureFlagX: Production-Ready Feature Flag Service
+# FeatureFlagX
 
-FeatureFlagX is a lightweight, high-performance feature flag service built with Java and Spring Boot. It provides a centralized platform for managing application features, enabling safe rollouts, A/B testing, and dynamic configuration changes without requiring application redeployments.
+Lightweight feature flag service built with Java and Spring Boot. Centralized flag management with Redis caching and PostgreSQL persistence.
 
-## 🚀 Quick Start (5 Minutes)
-
-### Prerequisites
-
-- **Docker & Docker Compose**: [Install Docker](https://docs.docker.com/get-docker/)
-- **Ensure you are logged into docker with `docker login`**
-
-
-### Launch the Service
-
-1. **Clone or download this project**
-
-2. **Navigate to the project directory**
-   ```bash
-   cd featureflagx-mvp
-   ```
-
-3. **Start all services**
-   ```bash
-   docker-compose up --build
-   ```
-
-4. **Verify the service is running**
-   ```bash
-   curl http://localhost:8080/actuator/health
-   ```
-
-   Expected response:
-   ```json
-   {"status":"UP"}
-   ```
-
-**That's it!** The service is now running and ready to use.
-
-## 📋 API Usage Examples
-
-### Evaluate a Flag (Public Endpoint)
-
-Check if a feature is enabled. This endpoint is optimized for high performance and doesn't require authentication.
+## Quick Start
 
 ```bash
-# Check the 'welcome-banner' flag (pre-seeded as enabled)
+git clone https://github.com/yourname/featureflagx.git
+cd featureflagx
+docker-compose up --build
+```
+
+Verify:
+```bash
+curl http://localhost:8080/actuator/health
+# {"status":"UP"}
+```
+
+## API
+
+### Evaluate Flag
+```bash
 curl http://localhost:8080/api/v1/flags/evaluate/welcome-banner
-# Returns: true
-
-# Check the 'beta-features' flag (pre-seeded as disabled)
-curl http://localhost:8080/api/v1/flags/evaluate/beta-features
-# Returns: false
-
-# Check a non-existent flag (returns false by default)
-curl http://localhost:8080/api/v1/flags/evaluate/non-existent
-# Returns: false
+# true
 ```
 
-### Get All Flags
-
+### CRUD Operations
 ```bash
+# List all
 curl http://localhost:8080/api/v1/flags
-```
 
-### Create a New Flag
-
-```bash
+# Create
 curl -X POST http://localhost:8080/api/v1/flags \
   -H "Content-Type: application/json" \
-  -d '{
-    "key": "new-checkout-flow",
-    "enabled": true,
-    "config": "{\"version\": \"v2\", \"timeout\": 5000}"
-  }'
-```
+  -d '{"key": "new-checkout-flow", "enabled": true, "config": "{\"version\": \"v2\"}"}'
 
-### Update a Flag
-
-```bash
+# Update
 curl -X PUT http://localhost:8080/api/v1/flags/new-checkout-flow \
   -H "Content-Type: application/json" \
-  -d '{
-    "key": "new-checkout-flow",
-    "enabled": false,
-    "config": "{\"version\": \"v1\"}"
-  }'
-```
+  -d '{"key": "new-checkout-flow", "enabled": false}'
 
-### Delete a Flag
-
-```bash
+# Delete
 curl -X DELETE http://localhost:8080/api/v1/flags/new-checkout-flow
+
+# Search
+curl "http://localhost:8080/api/v1/flags?search=welcome&enabled=true"
 ```
 
-### Search Flags
+## Architecture
 
-```bash
-# Search for flags containing "welcome"
-curl "http://localhost:8080/api/v1/flags?search=welcome"
-
-# Get only enabled flags
-curl "http://localhost:8080/api/v1/flags?enabled=true"
-
-# Get only disabled flags
-curl "http://localhost:8080/api/v1/flags?enabled=false"
 ```
-
-## 🏗️ Architecture
-
-The system consists of three main components:
+Client → API Service → Redis Cache → PostgreSQL (on cache miss)
+```
 
 | Component | Technology | Purpose |
 |-----------|------------|---------|
-| **API Service** | Java 11 + Spring Boot | RESTful API for flag management and evaluation |
-| **Database** | PostgreSQL 15 | Persistent storage for flag configurations |
-| **Cache** | Redis 7 | High-performance caching for flag evaluation |
+| API | Java 11, Spring Boot | RESTful flag management |
+| Cache | Redis 7 | Low-latency flag evaluation |
+| Database | PostgreSQL 15 | Persistent storage |
 
-### High-Level Flow
+**Fault tolerance:** If Redis is unavailable, the service falls back to PostgreSQL automatically.
 
-```
-Client Request → API Service → Redis Cache (if available) → PostgreSQL (if cache miss) → Response
-```
-
-The service is designed to be **fault-tolerant**. If Redis is unavailable, the API will automatically fall back to PostgreSQL, ensuring your application continues to work.
-
-## 🔧 Configuration
-
-The service comes with sensible defaults but can be customized via environment variables:
+## Configuration
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -137,117 +72,59 @@ The service comes with sensible defaults but can be customized via environment v
 | `REDIS_HOST` | `localhost` | Redis host |
 | `REDIS_PORT` | `6379` | Redis port |
 
-## 🧪 Testing
-
-### Prerequisites for Local Development
-
-- Java 11+
-- Maven 3.6+
-
-### Run Tests
-
-```bash
-cd api
-mvn test
-```
-
-### Build from Source
-
-```bash
-cd api
-mvn clean package
-```
-
-## 📊 Monitoring
-
-The service exposes health and monitoring endpoints:
-
-- **Health Check**: `GET /actuator/health`
-- **Application Info**: `GET /actuator/info`
-
-## 🔒 Security Features
-
-- **Input Validation**: All API inputs are validated to prevent malformed data
-- **Fail-Safe Defaults**: Non-existent flags return `false` by default
-- **Container Security**: Runs as non-root user in Docker
-- **Error Handling**: Comprehensive error handling with proper HTTP status codes
-
-## 📁 Project Structure
-
-```
-featureflagx-mvp/
-├── README.md                    # This file
-├── docker-compose.yml           # Docker orchestration
-├── init-db.sql                  # Database initialization
-└── api/                         # Spring Boot application
-    ├── Dockerfile
-    ├── pom.xml                  # Maven dependencies
-    └── src/
-        ├── main/java/com/featureflagx/
-        │   ├── Application.java         # Main application class
-        │   ├── controller/              # REST controllers
-        │   ├── dto/                     # Data transfer objects
-        │   ├── model/                   # JPA entities
-        │   ├── repository/              # Data repositories
-        │   └── service/                 # Business logic
-        └── test/                        # Unit tests
-```
-
-## 🚀 Production Deployment
-
-For production deployment, consider:
-
-1. **Environment Variables**: Override default passwords and configuration
-2. **HTTPS**: Use a reverse proxy (nginx, ALB) to terminate SSL
-3. **Monitoring**: Integrate with your monitoring stack via `/actuator` endpoints
-4. **Scaling**: The service is stateless and can be horizontally scaled
-5. **Database**: Use managed PostgreSQL and Redis services for high availability
-
-## 📝 API Reference
-
-### Flag Object
+## Flag Schema
 
 ```json
 {
-  "key": "feature-name",           // Unique identifier (kebab-case)
-  "enabled": true,                 // Whether the flag is enabled
-  "config": "{\"version\": \"v1\"}", // Optional JSON configuration
+  "key": "feature-name",
+  "enabled": true,
+  "config": "{\"version\": \"v1\"}",
   "createdAt": "2023-10-27T10:00:00",
   "updatedAt": "2023-10-27T10:05:00"
 }
 ```
 
-### Validation Rules
+**Validation:**
+- `key`: kebab-case, 1-255 characters
+- `config`: optional JSON, max 10,000 characters
 
-- **Flag Key**: Must be kebab-case (lowercase letters, numbers, hyphens only)
-- **Config**: Optional, maximum 10,000 characters
-- **Key Length**: 1-255 characters
+## Project Structure
 
-### HTTP Status Codes
+```
+featureflagx/
+├── docker-compose.yml
+├── init-db.sql
+└── api/
+    ├── Dockerfile
+    ├── pom.xml
+    └── src/main/java/com/featureflagx/
+        ├── Application.java
+        ├── controller/
+        ├── dto/
+        ├── model/
+        ├── repository/
+        └── service/
+```
 
-| Code | Meaning | When |
-|------|---------|------|
-| `200` | OK | Successful operation |
-| `201` | Created | Flag created successfully |
-| `204` | No Content | Flag deleted successfully |
-| `400` | Bad Request | Invalid input or validation error |
-| `404` | Not Found | Flag not found |
-| `500` | Internal Server Error | Unexpected server error |
+## Development
 
-## 🤝 Contributing
+```bash
+cd api
+mvn test          # Run tests
+mvn clean package # Build JAR
+```
 
-This is a production-ready MVP. For enhancements:
+## Endpoints
 
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new functionality
-4. Ensure all tests pass
-5. Submit a pull request
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/flags` | GET | List flags (supports `?search=` and `?enabled=`) |
+| `/api/v1/flags` | POST | Create flag |
+| `/api/v1/flags/{key}` | PUT | Update flag |
+| `/api/v1/flags/{key}` | DELETE | Delete flag |
+| `/api/v1/flags/evaluate/{key}` | GET | Evaluate flag (returns `true`/`false`) |
+| `/actuator/health` | GET | Health check |
 
-## 📄 License
+## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-**Built with ❤️ for reliable feature flag management**
+MIT
