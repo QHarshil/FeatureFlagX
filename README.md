@@ -5,7 +5,7 @@ Lightweight feature flag service built with Java and Spring Boot. Centralized fl
 ## Quick Start
 
 ```bash
-git clone https://github.com/yourname/featureflagx.git
+git clone https://github.com/QHarshil/featureflagx.git
 cd featureflagx
 docker-compose up --build
 ```
